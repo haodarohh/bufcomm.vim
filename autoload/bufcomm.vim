@@ -1,13 +1,8 @@
-" buffercomm.vim - Compare buffers using comm with split view
+" bufcomm.vim - Autoloaded core logic for BufComm comparison plugin
 " Maintainer: Generated for vim script comparison
 " License: MIT
 
-if exists('g:loaded_buffercomm')
-  finish
-endif
-let g:loaded_buffercomm = 1
-
-function! s:GetBufferInfo()
+function! s:GetBufferInfo() abort
   let buffers = []
   for bufnr in range(1, bufnr('$'))
     if buflisted(bufnr) && bufexists(bufnr)
@@ -32,32 +27,32 @@ function! s:GetBufferInfo()
   return buffers
 endfunction
 
-function! s:CreateTempfile(lines, suffix)
+function! s:CreateTempfile(lines, suffix) abort
   let tempfile = tempname() . '_' . a:suffix
   call writefile(a:lines, tempfile)
   return tempfile
 endfunction
 
-function! s:CloseComparisonTab()
-  if exists('t:buffercomm_tab') && t:buffercomm_tab == tabpagenr()
+function! s:CloseComparisonTab() abort
+  if exists('t:bufcomm_tab') && t:bufcomm_tab == tabpagenr()
     tabclose
   endif
 endfunction
 
-function! s:SetupComparisonWindow(lines, title)
+function! s:SetupComparisonWindow(lines, title) abort
   let tempfile = s:CreateTempfile(a:lines, substitute(tolower(a:title), ' ', '_', 'g'))
   execute 'edit ' . fnameescape(tempfile)
   setlocal buftype=nofile bufhidden=wipe noswapfile readonly nomodifiable
   execute 'file [' . a:title . ']'
   call delete(tempfile)
 
-  augroup buffercomm_cleanup
+  augroup bufcomm_cleanup
     autocmd! * <buffer>
     autocmd BufWipeout <buffer> call s:CloseComparisonTab()
   augroup END
 endfunction
 
-function! s:RunComm(file1, file2)
+function! s:RunComm(file1, file2) abort
   let cmd1 = 'comm -23 ' . shellescape(a:file1) . ' ' . shellescape(a:file2)
   let cmd2 = 'comm -13 ' . shellescape(a:file1) . ' ' . shellescape(a:file2)
   let cmd3 = 'comm -12 ' . shellescape(a:file1) . ' ' . shellescape(a:file2)
@@ -117,11 +112,11 @@ function! s:ResolveFiles(argcount, ...) abort
           \ 'cleanup': cleanup
           \ }
   endif
-  echoerr 'Usage: :BuffComm [file1] [file2]'
+  echoerr 'Usage: :BufComm [file1] [file2]'
   return {}
 endfunction
 
-function! s:ClearTempCleanup(paths)
+function! s:ClearTempCleanup(paths) abort
   for path in a:paths
     if filereadable(path)
       call delete(path)
@@ -129,8 +124,8 @@ function! s:ClearTempCleanup(paths)
   endfor
 endfunction
 
-function! s:OpenComparison(argcount, ...) abort
-  let files = call(function('s:ResolveFiles'), [a:argcount] + a:000)
+function! bufcomm#open_comparison(...) abort
+  let files = call(function('s:ResolveFiles'), [a:0] + a:000)
   if empty(files)
     return
   endif
@@ -147,11 +142,11 @@ function! s:OpenComparison(argcount, ...) abort
   endif
 
   tabnew
-  let t:buffercomm_tab = tabpagenr()
-  let t:buffercomm_file1 = files.file1
-  let t:buffercomm_file2 = files.file2
-  let t:buffercomm_name1 = files.name1
-  let t:buffercomm_name2 = files.name2
+  let t:bufcomm_tab = tabpagenr()
+  let t:bufcomm_file1 = files.file1
+  let t:bufcomm_file2 = files.file2
+  let t:bufcomm_name1 = files.name1
+  let t:bufcomm_name2 = files.name2
 
   call s:SetupComparisonWindow(result.only1, 'Only in ' . files.name1)
   vnew
@@ -167,23 +162,11 @@ function! s:OpenComparison(argcount, ...) abort
         \ . len(result.common) . ' common lines'
 endfunction
 
-function! s:ShowPaths()
-  if exists('t:buffercomm_tab') && t:buffercomm_tab == tabpagenr()
-    echo 'File 1: ' . t:buffercomm_file1 . ' (' . t:buffercomm_name1 . ')'
-    echo 'File 2: ' . t:buffercomm_file2 . ' (' . t:buffercomm_name2 . ')'
+function! bufcomm#show_paths() abort
+  if exists('t:bufcomm_tab') && t:bufcomm_tab == tabpagenr()
+    echo 'File 1: ' . t:bufcomm_file1 . ' (' . t:bufcomm_name1 . ')'
+    echo 'File 2: ' . t:bufcomm_file2 . ' (' . t:bufcomm_name2 . ')'
   else
-    echo 'Not in a BuffComm comparison tab'
+    echo 'Not in a BufComm comparison tab'
   endif
 endfunction
-
-function! BufferComm(...) abort
-  call s:OpenComparison(a:0, a:000)
-endfunction
-
-command! -nargs=* -complete=file BuffComm call BufferComm(<f-args>)
-command! BuffCommPaths call s:ShowPaths()
-
-if !hasmapto('<Plug>BuffCommCompare')
-  nnoremap <silent> <Leader>bc <Plug>BuffCommCompare
-endif
-nnoremap <silent> <Plug>BuffCommCompare :BuffComm<CR>
