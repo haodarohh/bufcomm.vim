@@ -2,6 +2,8 @@
 " Maintainer: Generated for vim script comparison
 " License: MIT
 
+" Collect metadata for each listed buffer, writing modified/unnamed buffers
+" to temporary files so comm can read them.
 function! s:GetBufferInfo() abort
   let buffers = []
   for bufnr in range(1, bufnr('$'))
@@ -11,6 +13,7 @@ function! s:GetBufferInfo() abort
       let cleanup = 0
 
       if empty(bufname) || getbufvar(bufnr, '&modified')
+        " Persist scratch or dirty buffers to a temp file so comparisons stay stable.
         let filepath = tempname()
         call writefile(getbufline(bufnr, 1, '$'), filepath)
         let cleanup = 1
@@ -27,18 +30,21 @@ function! s:GetBufferInfo() abort
   return buffers
 endfunction
 
+" Write the given list of lines to a temp file with a hint about its purpose.
 function! s:CreateTempfile(lines, suffix) abort
   let tempfile = tempname() . '_' . a:suffix
   call writefile(a:lines, tempfile)
   return tempfile
 endfunction
 
+" Ensure the comparison tab is closed when all temporary scratch buffers are gone.
 function! s:CloseComparisonTab() abort
   if exists('t:bufcomm_tab') && t:bufcomm_tab == tabpagenr()
     tabclose
   endif
 endfunction
 
+" Display one logical result (only in file1, only in file2, or common) inside a scratch window.
 function! s:SetupComparisonWindow(lines, title) abort
   let tempfile = s:CreateTempfile(a:lines, substitute(tolower(a:title), ' ', '_', 'g'))
   execute 'edit ' . fnameescape(tempfile)
@@ -52,6 +58,7 @@ function! s:SetupComparisonWindow(lines, title) abort
   augroup END
 endfunction
 
+" Run three comm invocations to capture uniques and common lines.
 function! s:RunComm(file1, file2) abort
   let cmd1 = 'comm -23 ' . shellescape(a:file1) . ' ' . shellescape(a:file2)
   let cmd2 = 'comm -13 ' . shellescape(a:file1) . ' ' . shellescape(a:file2)
@@ -68,6 +75,7 @@ function! s:RunComm(file1, file2) abort
   return {'only1': only1, 'only2': only2, 'common': common}
 endfunction
 
+" Resolve which files to compare, either from active buffers or CLI args, tracking temp files for cleanup.
 function! s:ResolveFiles(argcount, ...) abort
   let cleanup = []
   if a:argcount == 0
@@ -116,6 +124,7 @@ function! s:ResolveFiles(argcount, ...) abort
   return {}
 endfunction
 
+" Remove temporary files that held buffer snapshots.
 function! s:ClearTempCleanup(paths) abort
   for path in a:paths
     if filereadable(path)
@@ -124,6 +133,7 @@ function! s:ClearTempCleanup(paths) abort
   endfor
 endfunction
 
+" Entry point: normalize inputs, run comm, and lay out the three-way comparison tab.
 function! bufcomm#open_comparison(...) abort
   let files = call(function('s:ResolveFiles'), [a:0] + a:000)
   if empty(files)
@@ -162,6 +172,7 @@ function! bufcomm#open_comparison(...) abort
         \ . len(result.common) . ' common lines'
 endfunction
 
+" Surface the original file paths backing the current comparison tab.
 function! bufcomm#show_paths() abort
   if exists('t:bufcomm_tab') && t:bufcomm_tab == tabpagenr()
     echo 'File 1: ' . t:bufcomm_file1 . ' (' . t:bufcomm_name1 . ')'
